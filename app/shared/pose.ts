@@ -1,0 +1,130 @@
+/**
+ * MediaPipe Pose setup and skeleton drawing utilities.
+ * SHARED MODULE — used by both the YouTube app and the Zoom app.
+ *
+ * We load MediaPipe Pose from CDN to avoid bundling WASM in Next.js.
+ */
+
+export type NormalizedLandmark = {
+  x: number;
+  y: number;
+  z: number;
+  visibility?: number;
+};
+
+export type PoseResults = {
+  poseLandmarks?: NormalizedLandmark[];
+};
+
+// Virtual landmark index for the synthetic neck (midpoint of shoulders 11 & 12)
+export const NECK_INDEX = 33;
+
+// MediaPipe Pose connections (pairs of landmark indices)
+// 0 = nose, 33 = synthetic neck midpoint between shoulders
+export const POSE_CONNECTIONS: [number, number][] = [
+  [0, NECK_INDEX],
+  [NECK_INDEX, 11],
+  [NECK_INDEX, 12],
+  [11, 13],
+  [13, 15],
+  [12, 14],
+  [14, 16],
+  [11, 23],
+  [12, 24],
+  [23, 24],
+  [23, 25],
+  [25, 27],
+  [24, 26],
+  [26, 28],
+  [27, 29],
+  [28, 30],
+  [29, 31],
+  [30, 32],
+];
+
+/**
+ * Draw a skeleton overlay on a canvas from pose landmarks.
+ */
+export function drawSkeleton(
+  ctx: CanvasRenderingContext2D,
+  landmarks: NormalizedLandmark[],
+  width: number,
+  height: number
+) {
+  ctx.clearRect(0, 0, width, height);
+
+  // Synthesize a neck landmark as midpoint of shoulders (11 & 12)
+  const lmWithNeck = [...landmarks];
+  const lShoulder = landmarks[11];
+  const rShoulder = landmarks[12];
+  if (lShoulder && rShoulder) {
+    const minVis = Math.min(lShoulder.visibility ?? 0, rShoulder.visibility ?? 0);
+    lmWithNeck[NECK_INDEX] = {
+      x: (lShoulder.x + rShoulder.x) / 2,
+      y: (lShoulder.y + rShoulder.y) / 2,
+      z: (lShoulder.z + rShoulder.z) / 2,
+      visibility: minVis,
+    };
+  }
+
+  // Draw connections
+  ctx.strokeStyle = "#00FF88";
+  ctx.lineWidth = 3;
+  ctx.lineCap = "round";
+
+  for (const [a, b] of POSE_CONNECTIONS) {
+    const la = lmWithNeck[a];
+    const lb = lmWithNeck[b];
+    if (!la || !lb) continue;
+    if ((la.visibility ?? 0) < 0.3 || (lb.visibility ?? 0) < 0.3) continue;
+
+    ctx.beginPath();
+    // Mirror x for webcam
+    ctx.moveTo((1 - la.x) * width, la.y * height);
+    ctx.lineTo((1 - lb.x) * width, lb.y * height);
+    ctx.stroke();
+  }
+
+  // Draw keypoints: nose (0), neck (33), body (11+)
+  ctx.fillStyle = "#FF4488";
+  const keypointIndices = [0, NECK_INDEX, ...Array.from({ length: landmarks.length - 11 }, (_, i) => i + 11)];
+  for (const i of keypointIndices) {
+    const lm = lmWithNeck[i];
+    if (!lm || (lm.visibility ?? 0) < 0.3) continue;
+    ctx.beginPath();
+    ctx.arc((1 - lm.x) * width, lm.y * height, 5, 0, 2 * Math.PI);
+    ctx.fill();
+  }
+}
+
+/**
+ * Loads and initializes MediaPipe Pose.
+ * Returns a configured Pose instance.
+ */
+export async function loadPose(): Promise<unknown> {
+  const mpPose = await import("@mediapipe/pose");
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const PoseObj = mpPose.Pose || (mpPose as any).default?.Pose || (window as any).Pose;
+
+  const pose = new PoseObj({
+    locateFile: (file: string) => {
+      if (file.endsWith(".data") || file.includes("packed_assets")) {
+        return file;
+      }
+      if (file.startsWith("http://") || file.startsWith("https://")) {
+        return file;
+      }
+      return `/${file.replace(/^\//, "")}`;
+    },
+  });
+
+  pose.setOptions({
+    modelComplexity: 1,
+    smoothLandmarks: true,
+    enableSegmentation: false,
+    minDetectionConfidence: 0.5,
+    minTrackingConfidence: 0.5,
+  });
+
+  return pose;
+}

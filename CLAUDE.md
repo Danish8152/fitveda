@@ -18,7 +18,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 - **yt-dlp** — required for YouTube video downloads (spawned via child_process)
 - **ffmpeg** — used by yt-dlp for muxing
-- **OPENAI_API_KEY** — env var required for AI coach (set in `.env.local`)
+- **SARVAM_API_KEY** — env var required for AI voice coach TTS (Sarvam AI bulbul:v3 model, set in `.env.local`)
 
 ## Architecture
 

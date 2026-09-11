@@ -7,7 +7,7 @@ import ScreenCapturePanel from "../shared/ScreenCapturePanel";
 import { comparePosesDetailed } from "../lib/poseComparison";
 import { computeScore, buildPoseSummary } from "../shared/scoring";
 import { getCoachMessage } from "../shared/coach";
-import { speak } from "../shared/speech";
+import { speak, unlockAudio, setMuted } from "../shared/speech";
 import type { NormalizedLandmark } from "../shared/pose";
 import type { ComparisonResult } from "../shared/compare";
 
@@ -31,6 +31,7 @@ export default function ZoomApp() {
   const [comparison, setComparison] = useState<ComparisonResult | null>(null);
   const [coachMsg, setCoachMsg] = useState("");
   const [score, setScore] = useState(0);
+  const [audioMuted, setAudioMuted] = useState(false);
 
   // Zoom SDK state
   const [meetingNumber, setMeetingNumber] = useState("");
@@ -149,9 +150,14 @@ export default function ZoomApp() {
     (summary as Record<string, unknown>).reference = detailed;
 
     getCoachMessage(summary).then((result) => {
+      console.log("[Coach] result:", result ? { message: result.message, hasAudio: !!result.audio, audioLen: result.audio?.length } : null);
       if (result) {
         setCoachMsg(result.message);
-        if (result.audio) speak(result.audio);
+        if (result.audio) {
+          speak(result.audio);
+        } else {
+          console.warn("[Coach] No audio in result — Sarvam TTS may have failed server-side");
+        }
       }
     });
   }, [score]);
@@ -250,7 +256,7 @@ export default function ZoomApp() {
         </div>
 
         <div className="flex gap-6 max-w-2xl w-full">
-          <button onClick={() => setMode("zoom-sdk")}
+          <button onClick={() => { unlockAudio(); setMode("zoom-sdk"); }}
             className="flex-1 p-6 rounded-2xl bg-white/5 border border-white/10 hover:border-blue-500/50 transition-colors text-left cursor-pointer group">
             <div className="text-2xl mb-3">📹</div>
             <h3 className="font-semibold text-white group-hover:text-blue-400 transition-colors mb-2">
@@ -262,7 +268,7 @@ export default function ZoomApp() {
             </p>
           </button>
 
-          <button onClick={() => setMode("screen-capture")}
+          <button onClick={() => { unlockAudio(); setMode("screen-capture"); }}
             className="flex-1 p-6 rounded-2xl bg-white/5 border border-white/10 hover:border-cyan-500/50 transition-colors text-left cursor-pointer group">
             <div className="text-2xl mb-3">🖥️</div>
             <h3 className="font-semibold text-white group-hover:text-cyan-400 transition-colors mb-2">
@@ -281,21 +287,35 @@ export default function ZoomApp() {
   if (mode === "screen-capture") {
     return (
       <div className="min-h-screen bg-gradient-to-br from-gray-950 via-gray-900 to-black text-white flex flex-col">
-        <header className="flex-shrink-0 px-6 py-4 flex items-center border-b border-white/5">
+        <header className="flex-shrink-0 px-6 py-4 flex items-center justify-between border-b border-white/5">
+          <div className="flex items-center gap-3">
+            <button
+              onClick={() => setMode("choose")}
+              className="text-white/40 hover:text-white text-sm cursor-pointer mr-3"
+            >
+              ← Back
+            </button>
+            <h1 className="text-xl font-bold">
+              <span className="bg-gradient-to-r from-pink-500 to-violet-500 bg-clip-text text-transparent">
+                FITVEDA
+              </span>
+              <span className="text-white/30 text-sm ml-3 font-normal">
+                Screen Capture
+              </span>
+            </h1>
+          </div>
           <button
-            onClick={() => setMode("choose")}
-            className="text-white/40 hover:text-white text-sm cursor-pointer mr-3"
+            onClick={() => {
+              unlockAudio();
+              const next = !audioMuted;
+              setMuted(next);
+              setAudioMuted(next);
+            }}
+            className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-sm transition-colors cursor-pointer"
+            title={audioMuted ? "Unmute coach" : "Mute coach"}
           >
-            ← Back
+            {audioMuted ? "🔇 Muted" : "🔊 Coach On"}
           </button>
-          <h1 className="text-xl font-bold">
-            <span className="bg-gradient-to-r from-pink-500 to-violet-500 bg-clip-text text-transparent">
-              FITVEDA
-            </span>
-            <span className="text-white/30 text-sm ml-3 font-normal">
-              Screen Capture
-            </span>
-          </h1>
         </header>
         <main className="flex-1 flex gap-4 p-4 min-h-0 items-center justify-center">
           <div className="flex-1 min-w-0" style={{ aspectRatio: "16/9", maxHeight: "100%" }}>
@@ -335,7 +355,20 @@ export default function ZoomApp() {
             </span>
           </h1>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-3">
+          <button
+            onClick={() => {
+              unlockAudio();
+              const next = !audioMuted;
+              setMuted(next);
+              setAudioMuted(next);
+            }}
+            className="px-3 py-1.5 rounded-lg bg-white/10 hover:bg-white/20 text-sm transition-colors cursor-pointer"
+            title={audioMuted ? "Unmute coach" : "Mute coach"}
+          >
+            {audioMuted ? "🔇 Muted" : "🔊 Coach On"}
+          </button>
+          <div className="flex items-center gap-2">
           <span
             className={`w-2 h-2 rounded-full ${
               zoomState === "joined"
@@ -354,6 +387,7 @@ export default function ZoomApp() {
             {zoomState === "joined" && "In meeting"}
             {zoomState === "error" && "Error"}
           </span>
+          </div>
         </div>
       </header>
 

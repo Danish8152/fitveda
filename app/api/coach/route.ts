@@ -115,64 +115,50 @@ export async function POST(req: NextRequest) {
     const message =
       completion.choices[0]?.message?.content?.trim() ?? "Keep moving!";
 
-    // Generate speech audio via ElevenLabs TTS
+    // Generate speech audio via Sarvam AI TTS
     let audio: string | undefined;
-    const elevenLabsKey = process.env.ELEVENLABS_API_KEY;
-    if (elevenLabsKey) {
+    const sarvamKey = process.env.SARVAM_API_KEY;
+    console.log("[Sarvam] key present:", !!sarvamKey, "| message:", message);
+    if (sarvamKey) {
       try {
-        // Voice IDs — pick energetic voices suited to coaching
-        // Dance: "Rachel" (21m00Tcm4TlvDq8ikWAM) — bright & expressive
-        // Gym:   "Adam"   (pNInz6obpgDQGcFmaJgB) — deep & authoritative
-        const voiceId = isGym
-          ? "pNInz6obpgDQGcFmaJgB"
-          : "21m00Tcm4TlvDq8ikWAM";
+        // Voices — energetic English-capable voices suited to coaching
+        // Gym:   "rahul" — deep & authoritative male voice
+        // Dance: "priya" — bright & expressive female voice
+        const speaker = isGym ? "rahul" : "priya";
 
-        const ttsRes = await fetch(
-          `https://api.elevenlabs.io/v1/text-to-speech/${voiceId}`,
-          {
-            method: "POST",
-            headers: {
-              "xi-api-key": elevenLabsKey,
-              "Content-Type": "application/json",
-              Accept: "audio/mpeg",
-            },
-            body: JSON.stringify({
-              text: message,
-              model_id: "eleven_turbo_v2_5",
-              voice_settings: {
-                stability: 0.4,
-                similarity_boost: 0.75,
-                style: 0.6,
-                use_speaker_boost: true,
-              },
-            }),
-          }
-        );
+        const ttsRes = await fetch("https://api.sarvam.ai/text-to-speech", {
+          method: "POST",
+          headers: {
+            "api-subscription-key": sarvamKey,
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            text: message,
+            language_code: "en-IN",
+            speaker,
+            model: "bulbul:v3",
+            pace: 1.2,
+            temperature: 0.7,
+            speech_sample_rate: 22050,
+          }),
+        });
 
+        console.log("[Sarvam] HTTP status:", ttsRes.status);
         if (ttsRes.ok) {
-          const buf = Buffer.from(await ttsRes.arrayBuffer());
-          audio = buf.toString("base64");
+          const data = await ttsRes.json() as { audios: string[] };
+          console.log("[Sarvam] audios count:", data.audios?.length, "| first audio len:", data.audios?.[0]?.length);
+          if (data.audios?.[0]) {
+            audio = data.audios[0];
+          }
         } else {
-          console.error("ElevenLabs TTS error:", ttsRes.status, await ttsRes.text());
+          const errText = await ttsRes.text();
+          console.error("[Sarvam] TTS error:", ttsRes.status, errText);
         }
       } catch (ttsErr) {
-        console.error("ElevenLabs TTS error (falling back to text only):", ttsErr);
+        console.error("[Sarvam] TTS exception:", ttsErr);
       }
     } else {
-      // Fallback to OpenAI TTS if no ElevenLabs key
-      try {
-        const ttsRes = await openai.audio.speech.create({
-          model: "tts-1-hd",
-          voice: isGym ? "onyx" : "shimmer",
-          input: message,
-          response_format: "mp3",
-          speed: 1.15,
-        });
-        const buf = Buffer.from(await ttsRes.arrayBuffer());
-        audio = buf.toString("base64");
-      } catch (ttsErr) {
-        console.error("OpenAI TTS fallback error:", ttsErr);
-      }
+      console.warn("[Sarvam] No SARVAM_API_KEY set — audio will be skipped");
     }
 
     return NextResponse.json({ message, audio });

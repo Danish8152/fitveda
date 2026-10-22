@@ -5,17 +5,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ffmpeg \
     python3 \
     python3-pip \
-    pipx \
     ca-certificates \
-    && pipx install yt-dlp \
-    && apt-get purge -y python3-pip pipx \
-    && apt-get autoremove -y \
+    && pip3 install --no-cache-dir --break-system-packages yt-dlp \
     && rm -rf /var/lib/apt/lists/*
-
-ENV PATH="/root/.local/bin:$PATH"
 
 # yt-dlp needs a JS runtime to solve YouTube challenges; Node is already in this image
 RUN echo "--js-runtimes node" > /etc/yt-dlp.conf
+
+# Fail the build (instead of failing at runtime with ENOENT) if the tools are missing
+RUN yt-dlp --version && ffmpeg -version | head -1
 
 # --- Build stage ---
 FROM base AS builder

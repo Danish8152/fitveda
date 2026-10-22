@@ -4,10 +4,12 @@ import { mkdir, access } from "fs/promises";
 import path from "path";
 import { classifyVideo } from "../../lib/classifyVideo";
 import { VIDEO_DIR } from "../../lib/constants";
+import { ytdlpAuthArgs } from "../../lib/ytdlp";
 
 /** Run yt-dlp --dump-json and classify the video. Returns an SSE line. */
 async function classifyFromMetadata(videoId: string): Promise<string> {
   const url = `https://www.youtube.com/watch?v=${videoId}`;
+  const auth = ytdlpAuthArgs();
   return new Promise((resolve) => {
     execFile(
       "yt-dlp",
@@ -16,10 +18,12 @@ async function classifyFromMetadata(videoId: string): Promise<string> {
         "--no-download",
         "--extractor-args", "youtube:player_client=android,web",
         "--no-warnings",
+        ...auth.args,
         url,
       ],
       { maxBuffer: 10 * 1024 * 1024 },
       async (err, stdout) => {
+        auth.cleanup();
         if (err || !stdout) {
           resolve(
             `data: ${JSON.stringify({ type: "classified", mode: "dance", title: "" })}\n\n`
@@ -92,11 +96,13 @@ export async function POST(request: NextRequest) {
       // Launch classification in parallel (non-blocking)
       const classifyPromise = classifyFromMetadata(videoId);
 
+      const auth = ytdlpAuthArgs();
       const proc = spawn("yt-dlp", [
         "-f", "best[ext=mp4]/bestvideo[ext=mp4]+bestaudio/best",
         "--merge-output-format", "mp4",
         "--extractor-args", "youtube:player_client=android,web",
         "--no-warnings",
+        ...auth.args,
         "-o", outputPath,
         "--newline",
         url,
@@ -129,11 +135,13 @@ export async function POST(request: NextRequest) {
       };
 
       proc.on("error", (err) => {
+        auth.cleanup();
         safeEnqueue(`data: ${JSON.stringify({ type: "error", message: err.message })}\n\n`);
         safeClose();
       });
 
       proc.on("close", async (code) => {
+        auth.cleanup();
         if (code === 0) {
           safeEnqueue(`data: ${JSON.stringify({ type: "done" })}\n\n`);
           // Emit classification result after download completes

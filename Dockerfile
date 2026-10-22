@@ -14,6 +14,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 ENV PATH="/root/.local/bin:$PATH"
 
+# yt-dlp needs a JS runtime to solve YouTube challenges; Node is already in this image
+RUN echo "--js-runtimes node" > /etc/yt-dlp.conf
+
 # --- Build stage ---
 FROM base AS builder
 

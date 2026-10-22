@@ -2,7 +2,6 @@
 
 import { useState, useCallback, useRef, useEffect } from "react";
 import UrlInput from "./components/UrlInput";
-import GenerateInput from "./components/GenerateInput";
 import YoutubePanel from "./components/YoutubePanel";
 import type { YoutubePanelHandle } from "./components/YoutubePanel";
 import CameraPanel from "./components/CameraPanel";
@@ -18,7 +17,6 @@ import type { AppMode } from "./shared/mode";
 import { findClosestFrame, comparePosesDetailed } from "./lib/poseComparison";
 import type { DetailedComparison } from "./lib/poseComparison";
 import { speak } from "./lib/speech";
-import { segmentVideo, isSegmentationAvailable } from "./lib/segmentation";
 import { startGroqScoring, resetGroqScoring } from "./lib/groqScoring";
 import { processGestureLandmarks, resetGestureState } from "./lib/gestureControl";
 import type { GestureAction } from "./lib/gestureControl";
@@ -34,10 +32,6 @@ import {
   downloadRecording,
   loadRecording,
 } from "./lib/poseRecorder";
-import {
-  startWebcamRecording,
-  stopWebcamRecording,
-} from "./lib/webcamRecorder";
 import type { PoseRecording } from "./lib/poseRecorder";
 import {
   startReplay,
@@ -63,10 +57,8 @@ import type { SessionStats } from "./lib/sessionStats";
 
 type ScoreType = "perfect" | "great" | "ok" | "almost" | "miss";
 
-type InputMode = "url" | "generate";
 type DownloadStatus = "idle" | "downloading" | "done" | "error";
 type ExtractionStatus = "idle" | "extracting" | "done";
-type SegmentationStatus = "idle" | "segmenting" | "done" | "error" | "unavailable";
 type ClassificationStatus = "idle" | "pending" | "done";
 
 const STRIP_POSE_CACHE_VERSION = 6; // Bumped for new frame count
@@ -123,9 +115,6 @@ export default function Home() {
   const [currentVideoTime, setCurrentVideoTime] = useState(0);
   const [score, setScore] = useState(0);
   const [coachMsg, setCoachMsg] = useState("");
-  const [segmentationStatus, setSegmentationStatus] = useState<SegmentationStatus>("idle");
-  const [segmentationProgress, setSegmentationProgress] = useState(0);
-  const [segmentedVideoUrl, setSegmentedVideoUrl] = useState<string | null>(null);
   const [playbackRate, setPlaybackRate] = useState(1);
   const [isVideoPaused, setIsVideoPaused] = useState(true);
   const [referenceVideoAspectRatio, setReferenceVideoAspectRatio] = useState(16/9);
@@ -139,8 +128,6 @@ export default function Home() {
   const [replayPaused, setReplayPaused] = useState(false);
   const [replayProgress, setReplayProgress] = useState(0);
   const [mode, setMode] = useState<AppMode>("dance");
-  const [inputMode, setInputMode] = useState<InputMode>("url");
-  const [generatePhase, setGeneratePhase] = useState("");
   const [classificationStatus, setClassificationStatus] = useState<ClassificationStatus>("idle");
   const [modeOverlaySeq, setModeOverlaySeq] = useState(0);
   const [scorePopup, setScorePopup] = useState<ScoreType | null>(null);
@@ -155,16 +142,12 @@ export default function Home() {
   const [scorePopupPoints, setScorePopupPoints] = useState(0);
   const [comboFlash, setComboFlash] = useState<number | null>(null);
   const [pointsBumpSeq, setPointsBumpSeq] = useState(0);
-  const [recordingUrl, setRecordingUrl] = useState<string | undefined>(undefined);
-  const [recordingUploading, setRecordingUploading] = useState(false);
 
   const youtubePanelRef = useRef<YoutubePanelHandle>(null);
   const webcamCaptureRef = useRef<(() => string | null) | null>(null);
   const webcamStreamRef = useRef<MediaStream | null>(null);
-  const webcamRecordingStartedRef = useRef(false);
   const livePoseRef = useRef<NormalizedLandmark[] | null>(null);
   const stripPoseCacheRef = useRef<Map<string, StripPoseTimeline>>(new Map());
-  const segmentationStartedRef = useRef(false);
   const smoothedScoreRef = useRef(0);
   const groqAnchorRef = useRef<number | null>(null);
   const replayModeRef = useRef(false);
@@ -218,10 +201,6 @@ export default function Home() {
       setPoseTimeline(null);
       setExtractionStatus("idle");
       setExtractionProgress(0);
-      setSegmentationStatus("idle");
-      setSegmentationProgress(0);
-      setSegmentedVideoUrl(null);
-      segmentationStartedRef.current = false;
       groqAnchorRef.current = null;
       smoothedScoreRef.current = 0;
       resetGroqScoring();
@@ -244,9 +223,6 @@ export default function Home() {
       setScorePopupPoints(0);
       setComboFlash(null);
       streakRef.current = 0;
-      setRecordingUrl(undefined);
-      setRecordingUploading(false);
-      webcamRecordingStartedRef.current = false;
     }
 
     setVideoId(id);
@@ -312,99 +288,6 @@ export default function Home() {
     }
   }, [videoId, downloadStatus]);
 
-  const handleGenerate = useCallback(async (prompt: string) => {
-    // Reset state for new generation
-    setPoseTimeline(null);
-    setExtractionStatus("idle");
-    setExtractionProgress(0);
-    setSegmentationStatus("idle");
-    setSegmentationProgress(0);
-    setSegmentedVideoUrl(null);
-    segmentationStartedRef.current = false;
-    groqAnchorRef.current = null;
-    smoothedScoreRef.current = 0;
-    resetGroqScoring();
-    resetGestureState();
-    resetGymScoring();
-    scoredFramesRef.current.clear();
-    lastScoredFrameIndexRef.current = -1;
-    prevVideoTimeRef.current = 0;
-    setScorePopup(null);
-    setTotalPoints(0);
-    setScorePopupPoints(0);
-    setComboFlash(null);
-    streakRef.current = 0;
-    setSummaryReady(false);
-    setClassificationStatus("idle");
-
-    setDownloadStatus("downloading");
-    setClassificationStatus("pending");
-    setVideoTitle("");
-    setDownloadProgress(0);
-    setDownloadError(null);
-    setGeneratePhase("researching");
-
-    try {
-      const res = await fetch("/api/generate", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ prompt }),
-      });
-
-      if (!res.ok || !res.body) {
-        setDownloadStatus("error");
-        setDownloadError(`Server responded with ${res.status}`);
-        return;
-      }
-
-      const reader = res.body.getReader();
-      const decoder = new TextDecoder();
-      let buf = "";
-
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-
-        buf += decoder.decode(value, { stream: true });
-        const lines = buf.split("\n\n");
-        buf = lines.pop() || "";
-
-        for (const line of lines) {
-          const dataLine = line.replace(/^data: /, "");
-          if (!dataLine) continue;
-
-          try {
-            const event = JSON.parse(dataLine);
-            if (event.type === "progress") {
-              setDownloadProgress(event.percent);
-              if (event.phase) setGeneratePhase(event.phase);
-            } else if (event.type === "genId") {
-              setVideoId(event.id);
-            } else if (event.type === "done") {
-              setDownloadStatus("done");
-              setGeneratePhase("");
-            } else if (event.type === "classified") {
-              setMode(event.mode === "gym" ? "gym" : "dance");
-              setClassificationStatus("done");
-              setModeOverlaySeq(s => s + 1);
-              if (event.title) setVideoTitle(event.title);
-            } else if (event.type === "error") {
-              setDownloadStatus("error");
-              setDownloadError(event.message);
-              setGeneratePhase("");
-            }
-          } catch {
-            // ignore malformed SSE lines
-          }
-        }
-      }
-    } catch (err) {
-      setDownloadStatus("error");
-      setDownloadError(err instanceof Error ? err.message : "Network error");
-      setGeneratePhase("");
-    }
-  }, []);
-
   // Read ?url= query param on mount (for Chrome extension)
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
@@ -457,58 +340,6 @@ export default function Home() {
       });
   }, [downloadStatus, videoId, extractionStatus]);
 
-  // Kick off segmentation after download completes (parallel with pose extraction)
-  // Uses a ref guard instead of segmentationStatus in deps to avoid the effect
-  // re-running (and cancelling itself) when we set segmentationStatus to "segmenting".
-  useEffect(() => {
-    if (downloadStatus !== "done" || !videoId || segmentationStartedRef.current) return;
-    segmentationStartedRef.current = true;
-
-    let cancelled = false;
-
-    (async () => {
-      const available = await isSegmentationAvailable();
-      if (cancelled) return;
-
-      if (!available) {
-        setSegmentationStatus("unavailable");
-        return;
-      }
-
-      setSegmentationStatus("segmenting");
-      setSegmentationProgress(0);
-
-      try {
-        const url = await segmentVideo(videoId, (_status, progress) => {
-          if (!cancelled && progress !== undefined) {
-            setSegmentationProgress(progress);
-          }
-        });
-
-        if (!cancelled) {
-          setSegmentedVideoUrl(url);
-          setSegmentationStatus("done");
-        }
-      } catch (err) {
-        console.warn("Segmentation unavailable or failed, continuing without SAM2 overlay:", err);
-        if (!cancelled) {
-          setSegmentationStatus("error");
-        }
-      }
-    })();
-
-    return () => {
-      cancelled = true;
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [downloadStatus, videoId]);
-
-  // Video is ready when both extraction and segmentation are resolved
-  const segmentationReady =
-    segmentationStatus === "done" ||
-    segmentationStatus === "error" ||
-    segmentationStatus === "unavailable";
-
   // Handle video end — collect stats and request AI report
   const handleVideoEnded = useCallback(() => {
     const elapsed = performance.now() - (sessionStartRef.current || performance.now());
@@ -517,27 +348,6 @@ export default function Home() {
     setReportLoading(true);
     // Show notification instead of immediately showing report
     setSummaryReady(true);
-
-    // Stop webcam recording and upload
-    setRecordingUploading(true);
-    stopWebcamRecording()
-      .then(async (blob) => {
-        if (!blob) return;
-        const res = await fetch("/api/recording/upload", {
-          method: "POST",
-          body: blob,
-        });
-        if (res.ok) {
-          const data = await res.json();
-          setRecordingUrl(data.url);
-        }
-      })
-      .catch((err) => {
-        console.warn("Webcam recording upload failed:", err);
-      })
-      .finally(() => {
-        setRecordingUploading(false);
-      });
 
     fetch("/api/report", {
       method: "POST",
@@ -585,20 +395,9 @@ export default function Home() {
 
   // Poll video currentTime, paused state, and aspect ratio via rAF loop (video only mounts when ready)
   useEffect(() => {
-    if (extractionStatus !== "done" || !poseTimeline || !segmentationReady) return;
+    if (extractionStatus !== "done" || !poseTimeline) return;
 
     sessionStartRef.current = performance.now();
-
-    // Start webcam recording for the session
-    webcamRecordingStartedRef.current = false;
-    if (webcamStreamRef.current) {
-      try {
-        startWebcamRecording(webcamStreamRef.current);
-        webcamRecordingStartedRef.current = true;
-      } catch (err) {
-        console.error("Failed to start webcam recording:", err);
-      }
-    }
 
     let raf: number;
     const tick = () => {
@@ -674,16 +473,6 @@ export default function Home() {
         }
       }
 
-      // Retry webcam recording start if stream became available after session started
-      if (!webcamRecordingStartedRef.current && !videoEndedRef.current && webcamStreamRef.current) {
-        try {
-          startWebcamRecording(webcamStreamRef.current);
-          webcamRecordingStartedRef.current = true;
-        } catch {
-          // will retry next tick
-        }
-      }
-
       // Video end detection — trigger report card
       const duration = youtubePanelRef.current?.getDuration() ?? 0;
       if (duration > 0 && t >= duration - 0.5 && !videoEndedRef.current) {
@@ -696,11 +485,11 @@ export default function Home() {
     raf = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(raf);
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [extractionStatus, poseTimeline, segmentationReady]);
+  }, [extractionStatus, poseTimeline]);
 
   // Start Groq vision scoring when video is ready
   useEffect(() => {
-    if (extractionStatus !== "done" || !poseTimeline || !segmentationReady) return;
+    if (extractionStatus !== "done" || !poseTimeline) return;
     if (replayActive) return;
 
     const cleanup = startGroqScoring(
@@ -716,7 +505,7 @@ export default function Home() {
       cleanup();
       groqAnchorRef.current = null;
     };
-  }, [extractionStatus, poseTimeline, segmentationReady, replayActive]);
+  }, [extractionStatus, poseTimeline, replayActive]);
 
   // Stable callback ref to avoid re-mounting CameraPanel
   const onPoseRef = useRef<(landmarks: NormalizedLandmark[] | null) => void>(null);
@@ -952,39 +741,11 @@ export default function Home() {
         </div>
 
         <div className="flex-1 max-w-xl mx-8 flex flex-col gap-1.5">
-          <div className="flex gap-1 justify-center">
-            <button
-              onClick={() => setInputMode("url")}
-              className={`px-3 py-1 text-[9px] tracking-[0.2em] uppercase border transition-colors ${
-                inputMode === "url"
-                  ? "border-neon-cyan/60 text-neon-cyan bg-neon-cyan/10"
-                  : "border-neon-cyan/15 text-neon-cyan/40 hover:text-neon-cyan/60"
-              }`}
-              style={{ fontFamily: "var(--font-audiowide)" }}
-            >
-              YouTube URL
-            </button>
-            <button
-              onClick={() => setInputMode("generate")}
-              className={`px-3 py-1 text-[9px] tracking-[0.2em] uppercase border transition-colors ${
-                inputMode === "generate"
-                  ? "border-neon-cyan/60 text-neon-cyan bg-neon-cyan/10"
-                  : "border-neon-cyan/15 text-neon-cyan/40 hover:text-neon-cyan/60"
-              }`}
-              style={{ fontFamily: "var(--font-audiowide)" }}
-            >
-              AI Generate
-            </button>
-          </div>
-          {inputMode === "url" ? (
-            <UrlInput
-              onSubmit={handleUrl}
-              lastSubmittedTitle={videoTitle}
-              lastSubmittedUrl={lastSubmittedUrl}
-            />
-          ) : (
-            <GenerateInput onSubmit={handleGenerate} disabled={downloadStatus === "downloading"} />
-          )}
+          <UrlInput
+            onSubmit={handleUrl}
+            lastSubmittedTitle={videoTitle}
+            lastSubmittedUrl={lastSubmittedUrl}
+          />
         </div>
 
         {/* Spacer to balance the title on the left */}
@@ -1031,9 +792,6 @@ export default function Home() {
                 downloadError={downloadError}
                 extractionStatus={extractionStatus}
                 extractionProgress={extractionProgress}
-                segmentationStatus={segmentationStatus}
-                segmentationProgress={segmentationProgress}
-                generatePhase={generatePhase}
               />
 
               {/* Playback Speed Slider */}
@@ -1092,16 +850,9 @@ export default function Home() {
 
               <CameraPanel
                 onPose={handlePose}
-                segmentedVideoUrl={segmentedVideoUrl}
-                referenceVideoTime={currentVideoTime}
-                playbackRate={playbackRate}
-                isReferencePaused={isVideoPaused}
-                referenceVideoAspectRatio={referenceVideoAspectRatio}
                 webcamCaptureRef={webcamCaptureRef}
                 webcamStreamRef={webcamStreamRef}
                 onWebcamAspectRatio={setWebcamAspectRatio}
-                referencePose={referencePoseRef.current}
-                livePose={livePoseRef.current}
               />
               <ScorePopup score={scorePopup} points={scorePopupPoints} onComplete={() => setScorePopup(null)} />
 
@@ -1189,8 +940,6 @@ export default function Home() {
           mode={mode}
           videoTitle={videoTitle}
           loading={reportLoading}
-          recordingUrl={recordingUrl}
-          recordingUploading={recordingUploading}
           onClose={() => {
             setShowReport(false);
             videoEndedRef.current = false;

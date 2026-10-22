@@ -5,7 +5,6 @@ import { captureVideoFrame } from "../lib/frameCapture";
 
 type DownloadStatus = "idle" | "downloading" | "done" | "error";
 type ExtractionStatus = "idle" | "extracting" | "done";
-type SegmentationStatus = "idle" | "segmenting" | "done" | "error" | "unavailable";
 
 export type YoutubePanelHandle = {
   getCurrentTime: () => number;
@@ -25,9 +24,6 @@ type Props = {
   downloadError: string | null;
   extractionStatus: ExtractionStatus;
   extractionProgress: number;
-  segmentationStatus?: SegmentationStatus;
-  segmentationProgress?: number;
-  generatePhase?: string;
 };
 
 function HudCorners({ color = "neon-cyan" }: { color?: string }) {
@@ -61,9 +57,6 @@ const YoutubePanel = forwardRef<YoutubePanelHandle, Props>(function YoutubePanel
     downloadError,
     extractionStatus,
     extractionProgress,
-    segmentationStatus,
-    segmentationProgress,
-    generatePhase,
   },
   ref
 ) {
@@ -117,7 +110,7 @@ const YoutubePanel = forwardRef<YoutubePanelHandle, Props>(function YoutubePanel
             &#9654;
           </div>
           <p className="text-neon-cyan/25 text-xs tracking-wider uppercase">
-            Paste a YouTube URL or generate with AI
+            Paste a YouTube URL to get started
           </p>
         </div>
       </div>
@@ -125,19 +118,15 @@ const YoutubePanel = forwardRef<YoutubePanelHandle, Props>(function YoutubePanel
   }
 
   if (downloadStatus === "downloading") {
-    const phaseLabel = generatePhase
-      ? { researching: "Researching the Web", synthesizing: "Synthesizing Routine", generating: "Generating Video", downloading: "Downloading Video" }[generatePhase] || "Processing"
-      : "Downloading";
-
     return (
       <div className="relative w-full h-full flex flex-col items-center justify-center gap-5 bg-black/50 border border-neon-cyan/10 rounded">
         <HudCorners />
-        <PanelLabel>{generatePhase ? "AI Generating" : "Downloading"}</PanelLabel>
+        <PanelLabel>Downloading</PanelLabel>
         <div
           className="text-neon-cyan/50 text-xs tracking-[0.2em] uppercase"
           style={{ fontFamily: "var(--font-audiowide)" }}
         >
-          {phaseLabel}
+          Downloading
         </div>
         <div className="w-56 h-1.5 bg-white/5 rounded-full overflow-hidden">
           <div
@@ -172,20 +161,8 @@ const YoutubePanel = forwardRef<YoutubePanelHandle, Props>(function YoutubePanel
     );
   }
 
-  // Show loading screens while extraction or segmentation are in progress
-  const segmentationPending =
-    segmentationStatus === "idle" ||
-    segmentationStatus === "segmenting";
-  const segmentationReady =
-    segmentationStatus === "done" ||
-    segmentationStatus === "error" ||
-    segmentationStatus === "unavailable";
-
-  if (extractionStatus === "extracting" || (!segmentationReady && downloadStatus === "done")) {
-    // Both extraction and segmentation may run in parallel — show dual progress
-    const showExtraction = extractionStatus === "extracting";
-    const showSegmentation = segmentationPending && downloadStatus === "done";
-
+  // Show loading screen while pose extraction is in progress
+  if (extractionStatus === "extracting") {
     return (
       <div className="relative w-full h-full flex flex-col items-center justify-center gap-6 bg-black/50 border border-neon-violet/15 rounded">
         <HudCorners color="neon-violet" />
@@ -203,80 +180,35 @@ const YoutubePanel = forwardRef<YoutubePanelHandle, Props>(function YoutubePanel
           <div className="flex items-center justify-between">
             <span
               className="text-[9px] tracking-[0.15em] uppercase"
-              style={{
-                fontFamily: "var(--font-audiowide)",
-                color: showExtraction ? "rgba(184, 41, 255, 0.8)" : "rgba(184, 41, 255, 0.35)",
-              }}
+              style={{ fontFamily: "var(--font-audiowide)", color: "rgba(184, 41, 255, 0.8)" }}
             >
               Analyzing Moves
             </span>
             <span
               className="text-[9px] tracking-[0.15em]"
-              style={{
-                fontFamily: "var(--font-audiowide)",
-                color: showExtraction ? "rgba(184, 41, 255, 0.8)" : "rgba(184, 41, 255, 0.35)",
-              }}
+              style={{ fontFamily: "var(--font-audiowide)", color: "rgba(184, 41, 255, 0.8)" }}
             >
-              {extractionStatus === "done" ? "✓" : `${Math.round(extractionProgress)}%`}
+              {Math.round(extractionProgress)}%
             </span>
           </div>
           <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden">
             <div
               className="h-full rounded-full transition-all duration-300"
               style={{
-                width: `${extractionStatus === "done" ? 100 : extractionProgress}%`,
+                width: `${extractionProgress}%`,
                 background: "linear-gradient(90deg, #b829ff, #ff00aa)",
-                boxShadow: showExtraction ? "0 0 10px rgba(184, 41, 255, 0.4)" : "none",
-                opacity: extractionStatus === "done" ? 0.4 : 1,
+                boxShadow: "0 0 10px rgba(184, 41, 255, 0.4)",
               }}
             />
           </div>
         </div>
-
-        {/* Segmentation progress */}
-        {showSegmentation && (
-          <div className="w-64 flex flex-col gap-1.5">
-            <div className="flex items-center justify-between">
-              <span
-                className="text-[9px] tracking-[0.15em] uppercase text-neon-green/80"
-                style={{ fontFamily: "var(--font-audiowide)" }}
-              >
-                Segmenting Dancer
-              </span>
-              <span
-                className="text-[9px] tracking-[0.15em] text-neon-green/80"
-                style={{ fontFamily: "var(--font-audiowide)" }}
-              >
-                {(segmentationProgress ?? 0) > 0
-                  ? `${Math.round(segmentationProgress ?? 0)}%`
-                  : "Starting..."}
-              </span>
-            </div>
-            <div className="w-full h-1.5 bg-white/5 rounded-full overflow-hidden">
-              <div
-                className="h-full rounded-full transition-all duration-300"
-                style={{
-                  width: `${segmentationProgress ?? 0}%`,
-                  background: "linear-gradient(90deg, #00ff88, #00ccff)",
-                  boxShadow: "0 0 10px rgba(0, 255, 136, 0.3)",
-                }}
-              />
-            </div>
-          </div>
-        )}
 
         {/* Overall percentage */}
         <div
           className="neon-text-violet text-2xl font-bold"
           style={{ fontFamily: "var(--font-audiowide)" }}
         >
-          {Math.round(
-            showExtraction && showSegmentation
-              ? (extractionProgress + (segmentationProgress ?? 0)) / 2
-              : showExtraction
-                ? extractionProgress
-                : (segmentationProgress ?? 0)
-          )}%
+          {Math.round(extractionProgress)}%
         </div>
       </div>
     );
@@ -293,18 +225,6 @@ const YoutubePanel = forwardRef<YoutubePanelHandle, Props>(function YoutubePanel
         autoPlay
         className="absolute inset-0 w-full h-full object-contain"
       />
-
-      {segmentationStatus === "done" && (
-        <div className="absolute bottom-2 right-3 z-10 flex items-center gap-2 bg-black/80 px-2.5 py-1 border border-neon-green/30 rounded-sm">
-          <span className="w-1.5 h-1.5 rounded-full bg-neon-green" />
-          <span
-            className="text-[9px] tracking-[0.15em] text-neon-green/80 uppercase"
-            style={{ fontFamily: "var(--font-audiowide)" }}
-          >
-            Segmented
-          </span>
-        </div>
-      )}
     </div>
   );
 });

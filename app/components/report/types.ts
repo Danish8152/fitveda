@@ -19,8 +19,6 @@ export type ReportCardProps = {
   videoTitle: string;
   loading: boolean;
   onClose: () => void;
-  recordingUrl?: string;
-  recordingUploading?: boolean;
 };
 
 type GradeStyle = { color: string; glow: string; shadow: string };

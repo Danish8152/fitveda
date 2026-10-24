@@ -1,4 +1,4 @@
-FROM node:20-slim AS base
+FROM node:22-slim AS base
 
 # Install system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -9,7 +9,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && pip3 install --no-cache-dir --break-system-packages "yt-dlp[default]" \
     && rm -rf /var/lib/apt/lists/*
 
-# yt-dlp needs a JS runtime to solve YouTube challenges; Node is already in this image
+# yt-dlp needs a JS runtime to solve YouTube challenges; it only accepts Node >= 22 (hence node:22 above)
 RUN echo "--js-runtimes node" > /etc/yt-dlp.conf
 
 # Fail the build (instead of failing at runtime with ENOENT) if the tools are missing

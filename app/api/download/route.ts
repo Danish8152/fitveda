@@ -6,6 +6,13 @@ import { classifyVideo } from "../../lib/classifyVideo";
 import { VIDEO_DIR } from "../../lib/constants";
 import { ytdlpAuthArgs } from "../../lib/ytdlp";
 
+/**
+ * Prefer H.264 up to 720p (plays everywhere, light for pose extraction), then fall back
+ * to any mp4, then to whatever yt-dlp thinks is best so we never fail on "format not available".
+ */
+const FORMAT_SELECTOR =
+  "bv*[vcodec^=avc1][height<=720]+ba[ext=m4a]/b[ext=mp4][height<=720]/bv*[height<=720]+ba/b";
+
 /** Run yt-dlp --dump-json and classify the video. Returns an SSE line. */
 async function classifyFromMetadata(videoId: string): Promise<string> {
   const url = `https://www.youtube.com/watch?v=${videoId}`;
@@ -16,7 +23,6 @@ async function classifyFromMetadata(videoId: string): Promise<string> {
       [
         "--dump-json",
         "--no-download",
-        "--extractor-args", "youtube:player_client=android,web",
         "--no-warnings",
         ...auth.args,
         url,
@@ -98,9 +104,8 @@ export async function POST(request: NextRequest) {
 
       const auth = ytdlpAuthArgs();
       const proc = spawn("yt-dlp", [
-        "-f", "best[ext=mp4]/bestvideo[ext=mp4]+bestaudio/best",
+        "-f", FORMAT_SELECTOR,
         "--merge-output-format", "mp4",
-        "--extractor-args", "youtube:player_client=android,web",
         "--no-warnings",
         ...auth.args,
         "-o", outputPath,

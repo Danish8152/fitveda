@@ -5,6 +5,7 @@ import path from "path";
 import { classifyVideo } from "../../lib/classifyVideo";
 import { VIDEO_DIR } from "../../lib/constants";
 import { ytdlpAuthArgs } from "../../lib/ytdlp";
+import { touchVideo } from "../../lib/videoCleanup";
 
 /**
  * Prefer H.264 up to 720p (plays everywhere, light for pose extraction), then fall back
@@ -71,6 +72,7 @@ export async function POST(request: NextRequest) {
   // Check if already downloaded
   try {
     await access(outputPath);
+    touchVideo(outputPath);
     // File exists — return progress + classification concurrently
     const encoder = new TextEncoder();
     const stream = new ReadableStream({

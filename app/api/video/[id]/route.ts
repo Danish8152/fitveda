@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 import { stat, open } from "fs/promises";
 import path from "path";
 import { VIDEO_DIR } from "../../../lib/constants";
+import { touchVideo } from "../../../lib/videoCleanup";
 
 export async function GET(
   request: NextRequest,
@@ -22,6 +23,9 @@ export async function GET(
   } catch {
     return NextResponse.json({ error: "Video not found" }, { status: 404 });
   }
+
+  // Restart the 1-hour deletion clock while the video is being watched (throttled to once a minute)
+  if (Date.now() - fileStat.mtimeMs > 60_000) touchVideo(filePath);
 
   const fileSize = fileStat.size;
   const rangeHeader = request.headers.get("range");

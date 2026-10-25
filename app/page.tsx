@@ -3,6 +3,7 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import UrlInput from "./components/UrlInput";
 import GenerateInput from "./components/GenerateInput";
+import ZoomMode from "./components/ZoomMode";
 import YoutubePanel from "./components/YoutubePanel";
 import type { YoutubePanelHandle } from "./components/YoutubePanel";
 import CameraPanel from "./components/CameraPanel";
@@ -58,7 +59,7 @@ import type { SessionStats } from "./lib/sessionStats";
 
 type ScoreType = "perfect" | "great" | "ok" | "almost" | "miss";
 
-type InputMode = "url" | "generate";
+type InputMode = "url" | "generate" | "zoom";
 type DownloadStatus = "idle" | "downloading" | "done" | "error";
 type ExtractionStatus = "idle" | "extracting" | "done";
 type ClassificationStatus = "idle" | "pending" | "done";
@@ -583,7 +584,7 @@ export default function Home() {
   // Start Groq vision scoring when video is ready
   useEffect(() => {
     if (extractionStatus !== "done" || !poseTimeline) return;
-    if (replayActive) return;
+    if (replayActive || inputMode === "zoom") return;
 
     const cleanup = startGroqScoring(
       () => youtubePanelRef.current?.captureFrame() ?? null,
@@ -598,7 +599,7 @@ export default function Home() {
       cleanup();
       groqAnchorRef.current = null;
     };
-  }, [extractionStatus, poseTimeline, replayActive]);
+  }, [extractionStatus, poseTimeline, replayActive, inputMode]);
 
   // Stable callback ref to avoid re-mounting CameraPanel
   const onPoseRef = useRef<(landmarks: NormalizedLandmark[] | null) => void>(null);
@@ -857,6 +858,17 @@ export default function Home() {
             >
               AI Generate
             </button>
+            <button
+              onClick={() => setInputMode("zoom")}
+              className={`px-3 py-1 text-[9px] tracking-[0.2em] uppercase border transition-colors ${
+                inputMode === "zoom"
+                  ? "border-neon-cyan/60 text-neon-cyan bg-neon-cyan/10"
+                  : "border-neon-cyan/15 text-neon-cyan/40 hover:text-neon-cyan/60"
+              }`}
+              style={{ fontFamily: "var(--font-audiowide)" }}
+            >
+              Zoom
+            </button>
           </div>
           {inputMode === "url" ? (
             <UrlInput
@@ -864,9 +876,9 @@ export default function Home() {
               lastSubmittedTitle={videoTitle}
               lastSubmittedUrl={lastSubmittedUrl}
             />
-          ) : (
+          ) : inputMode === "generate" ? (
             <GenerateInput onSubmit={handleGenerate} disabled={downloadStatus === "downloading"} />
-          )}
+          ) : null}
         </div>
 
         {/* Spacer to balance the title on the left */}
@@ -883,6 +895,11 @@ export default function Home() {
       {/* Mode activation overlay */}
       <ModeOverlay mode={mode} seq={modeOverlaySeq} />
 
+      {/* Zoom tab — replaces the YouTube arena so only one webcam/pose engine runs */}
+      {inputMode === "zoom" && <ZoomMode />}
+
+      {inputMode !== "zoom" && (
+      <>
       {/* Classification pending — "Detecting mode..." indicator */}
       {downloadStatus === "done" && classificationStatus === "pending" && (
         <main className="flex-1 flex items-center justify-center min-h-0 relative z-10">
@@ -1041,6 +1058,9 @@ export default function Home() {
             onStopReplay={handleStopReplay}
           />
         </div>
+
+      </>
+      )}
 
       {/* Summary Ready notification */}
       <SummaryReadyNotification

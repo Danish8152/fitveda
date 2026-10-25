@@ -26,7 +26,7 @@ const LIMB_LABELS: Record<string, string> = {
   torso: "Torso",
 };
 
-/** Zoom tab: coach your moves against a live Zoom call or a captured Zoom window. */
+/** "Live Class" tab: coach your moves against a live Zoom call or a captured Zoom window. */
 export default function ZoomMode() {
   const [mode, setMode] = useState<Mode>("choose");
   const [comparison, setComparison] = useState<ComparisonResult | null>(null);
@@ -244,19 +244,19 @@ export default function ZoomMode() {
 
   if (mode === "choose") {
     return (
-      <div className="flex-1 min-h-0 relative z-10 overflow-y-auto text-white flex flex-col items-center justify-center gap-8 p-8">
+      <div className="flex-1 min-h-0 relative z-10 overflow-y-auto text-white flex flex-col items-center justify-center gap-6 sm:gap-8 p-4 sm:p-8">
         <div className="text-center">
           <h2 className="text-2xl font-bold mb-2">
             <span className="bg-gradient-to-r from-pink-500 to-violet-500 bg-clip-text text-transparent">
-              Zoom Mode
+              Live Class
             </span>
           </h2>
           <p className="text-white/40 text-sm">
-            Choose how to connect
+            Follow a live instructor on a video call. Choose how to connect:
           </p>
         </div>
 
-        <div className="flex gap-6 max-w-2xl w-full">
+        <div className="flex flex-col sm:flex-row gap-4 sm:gap-6 max-w-2xl w-full">
           <button onClick={() => { unlockAudio(); setMode("zoom-sdk"); }}
             className="flex-1 p-6 rounded-2xl bg-white/5 border border-white/10 hover:border-blue-500/50 transition-colors text-left cursor-pointer group">
             <div className="text-2xl mb-3">📹</div>
@@ -288,7 +288,7 @@ export default function ZoomMode() {
   if (mode === "screen-capture") {
     return (
       <div className="flex-1 min-h-0 relative z-10 overflow-y-auto text-white flex flex-col">
-        <header className="flex-shrink-0 px-6 py-4 flex items-center justify-between border-b border-white/5">
+        <header className="flex-shrink-0 px-3 sm:px-6 py-3 sm:py-4 flex flex-wrap gap-2 items-center justify-between border-b border-white/5">
           <div className="flex items-center gap-3">
             <button
               onClick={() => setMode("choose")}
@@ -311,14 +311,14 @@ export default function ZoomMode() {
             {audioMuted ? "🔇 Muted" : "🔊 Coach On"}
           </button>
         </header>
-        <main className="flex-1 flex gap-4 p-4 min-h-0 items-center justify-center">
-          <div className="flex-1 min-w-0" style={{ aspectRatio: "16/9", maxHeight: "100%" }}>
+        <main className="flex-1 flex flex-col sm:flex-row gap-3 sm:gap-4 p-2 sm:p-4 min-h-0 items-center justify-center">
+          <div className="w-full sm:w-auto sm:flex-1 min-w-0" style={{ aspectRatio: "16/9", maxHeight: "100%" }}>
             <ScreenCapturePanel
               onPose={handleRemotePose}
               onAspectRatio={(r) => { remoteAspectRef.current = r; }}
             />
           </div>
-          <div className="flex-1 min-w-0" style={{ aspectRatio: "16/9", maxHeight: "100%" }}>
+          <div className="w-full sm:w-auto sm:flex-1 min-w-0" style={{ aspectRatio: "16/9", maxHeight: "100%" }}>
             <CameraPanel onPose={handleSelfPose} badge="YOU" />
           </div>
         </main>
@@ -332,7 +332,7 @@ export default function ZoomMode() {
   // --- Zoom SDK mode ---
   return (
     <div className="flex-1 min-h-0 relative z-10 overflow-y-auto text-white flex flex-col">
-      <header className="flex-shrink-0 px-6 py-4 flex items-center justify-between border-b border-white/5">
+      <header className="flex-shrink-0 px-3 sm:px-6 py-3 sm:py-4 flex flex-wrap gap-2 items-center justify-between border-b border-white/5">
         <div className="flex items-center gap-3">
           <button
             onClick={() => setMode("choose")}
@@ -379,9 +379,9 @@ export default function ZoomMode() {
       </header>
 
       {zoomState !== "joined" && (
-        <div className="flex-shrink-0 px-6 py-4 border-b border-white/5">
-          <div className="flex gap-3 items-end max-w-3xl mx-auto">
-            <div className="flex-1">
+        <div className="flex-shrink-0 px-3 sm:px-6 py-3 sm:py-4 border-b border-white/5">
+          <div className="flex flex-wrap gap-3 items-end max-w-3xl mx-auto">
+            <div className="flex-1 min-w-[12rem]">
               <label className="text-xs text-white/40 mb-1 block">
                 Meeting Number
               </label>
@@ -393,7 +393,7 @@ export default function ZoomMode() {
                 className="w-full px-4 py-2.5 rounded-xl bg-white/10 border border-white/20 text-white placeholder-white/30 outline-none focus:border-blue-500 text-sm"
               />
             </div>
-            <div className="w-40">
+            <div className="w-full sm:w-40">
               <label className="text-xs text-white/40 mb-1 block">
                 Passcode
               </label>
@@ -405,7 +405,7 @@ export default function ZoomMode() {
                 className="w-full px-4 py-2.5 rounded-xl bg-white/10 border border-white/20 text-white placeholder-white/30 outline-none focus:border-blue-500 text-sm"
               />
             </div>
-            <div className="w-40">
+            <div className="w-full sm:w-40">
               <label className="text-xs text-white/40 mb-1 block">
                 Your Name
               </label>
@@ -433,8 +433,8 @@ export default function ZoomMode() {
         </div>
       )}
 
-      <main className="flex-1 flex gap-4 p-4 min-h-0 items-center justify-center">
-        <div className="flex-1 min-w-0 rounded-2xl overflow-hidden border border-white/10 bg-black" style={{ aspectRatio: "16/9", maxHeight: "100%" }}>
+      <main className="flex-1 flex flex-col sm:flex-row gap-3 sm:gap-4 p-2 sm:p-4 min-h-0 items-center justify-center">
+        <div className="w-full sm:w-auto sm:flex-1 min-w-0 rounded-2xl overflow-hidden border border-white/10 bg-black" style={{ aspectRatio: "16/9", maxHeight: "100%" }}>
           <iframe
             ref={iframeRef}
             src="/zoom-embed.html"
@@ -442,7 +442,7 @@ export default function ZoomMode() {
             allow="camera; microphone; display-capture; autoplay; clipboard-write; fullscreen"
           />
         </div>
-        <div className="flex-1 min-w-0" style={{ aspectRatio: "16/9", maxHeight: "100%" }}>
+        <div className="w-full sm:w-auto sm:flex-1 min-w-0" style={{ aspectRatio: "16/9", maxHeight: "100%" }}>
           <CameraPanel onPose={handleSelfPose} badge="YOU" />
         </div>
       </main>

@@ -1,5 +1,9 @@
 @import "tailwindcss";
 
+/* "fit": the screen is big enough for the full-screen arena (no page scroll).
+   Smaller screens, e.g. phones in portrait or landscape, get a normal scrolling page. */
+@custom-variant fit (@media (min-width: 640px) and (min-height: 600px));
+
 /* ══════════════════════════════════════════════
    NEON DANCE ARENA — Theme System
    LOUD. REACTIVE. CELEBRATORY.

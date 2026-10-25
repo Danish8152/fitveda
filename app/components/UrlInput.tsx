@@ -105,7 +105,7 @@ export default function UrlInput({ onSubmit, initialUrl = "", lastSubmittedTitle
 
   return (
     <form onSubmit={handleSubmit} className="flex gap-2 w-full max-w-2xl mx-auto items-center">
-      <div className="flex-1 relative" ref={wrapperRef}>
+      <div className="flex-1 min-w-0 relative" ref={wrapperRef}>
         <span
           className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] tracking-widest uppercase text-neon-cyan/35"
           style={{ fontFamily: "var(--font-audiowide)" }}
@@ -150,7 +150,7 @@ export default function UrlInput({ onSubmit, initialUrl = "", lastSubmittedTitle
       </div>
       <button
         type="submit"
-        className="neon-btn px-5 py-2.5 text-sm font-semibold uppercase tracking-[0.15em] rounded-none"
+        className="neon-btn flex-shrink-0 px-3 sm:px-5 py-2.5 text-sm font-semibold uppercase tracking-[0.15em] rounded-none"
         style={{ fontFamily: "var(--font-audiowide)" }}
       >
         Load

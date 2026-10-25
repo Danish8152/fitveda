@@ -17,6 +17,7 @@ type Props = {
 };
 
 const CARD_BASE_H = 128;
+const CARD_BASE_H_COMPACT = 88; // phones and short screens
 const VISIBLE_CARDS = 7;
 
 const REF_STYLE = {
@@ -38,9 +39,18 @@ export default function MoveQueue({ timeline, currentTime, livePoseRef, onSeek, 
   const cardScoresRef = useRef<Map<number, number>>(new Map());
   const [cardScores, setCardScores] = useState<Map<number, number>>(new Map());
 
+  // Smaller cards on phones / short screens so the strip doesn't eat the whole viewport
+  const [compact, setCompact] = useState(false);
+  useEffect(() => {
+    const update = () => setCompact(window.innerWidth < 640 || window.innerHeight < 700);
+    update();
+    window.addEventListener("resize", update);
+    return () => window.removeEventListener("resize", update);
+  }, []);
+
   // Calculate card dimensions based on video aspect ratio
-  const CARD_W = Math.round(CARD_BASE_H * referenceVideoAspectRatio);
-  const CARD_H = CARD_BASE_H;
+  const CARD_H = compact ? CARD_BASE_H_COMPACT : CARD_BASE_H;
+  const CARD_W = Math.round(CARD_H * referenceVideoAspectRatio);
 
   // Timeline is already sampled (e.g. every 2s) — just classify
   const samples = useMemo(() => {

@@ -32,7 +32,7 @@ export default function GenerateInput({ onSubmit, disabled }: Props) {
   return (
     <div className="w-full max-w-2xl mx-auto">
       <form onSubmit={handleSubmit} className="flex gap-2 items-center">
-        <div className="flex-1 relative">
+        <div className="flex-1 min-w-0 relative">
           <span
             className="absolute left-3 top-1/2 -translate-y-1/2 text-[10px] tracking-widest uppercase text-neon-cyan/35"
             style={{ fontFamily: "var(--font-audiowide)" }}
@@ -52,7 +52,7 @@ export default function GenerateInput({ onSubmit, disabled }: Props) {
         <button
           type="submit"
           disabled={disabled || !value.trim()}
-          className="neon-btn px-5 py-2.5 text-sm font-semibold uppercase tracking-[0.15em] rounded-none disabled:opacity-50"
+          className="neon-btn flex-shrink-0 px-3 sm:px-5 py-2.5 text-sm font-semibold uppercase tracking-[0.15em] rounded-none disabled:opacity-50"
           style={{ fontFamily: "var(--font-audiowide)" }}
         >
           Generate

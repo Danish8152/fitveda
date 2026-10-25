@@ -64,10 +64,10 @@ export default function RecordReplayPanel({
   const fontStyle = { fontFamily: "var(--font-audiowide)" };
 
   return (
-    <div className="fixed bottom-4 right-4 z-50 flex flex-col items-end gap-2">
+    <div className="fixed bottom-2 right-2 sm:bottom-4 sm:right-4 z-50 flex flex-col items-end gap-2 max-w-[calc(100vw-1rem)]">
       {/* Progress bar — shown during replay */}
       {isReplaying && (
-        <div className="w-64 flex items-center gap-2">
+        <div className="w-44 sm:w-64 flex items-center gap-2">
           <div className="flex-1 h-1 bg-black/50 rounded overflow-hidden border border-neon-cyan/20">
             <div
               className="h-full bg-neon-cyan/70 transition-all duration-100"
@@ -84,7 +84,7 @@ export default function RecordReplayPanel({
       )}
 
       {/* Controls toolbar */}
-      <div className="flex items-center gap-1.5 bg-black/60 backdrop-blur-sm border border-neon-cyan/20 rounded-lg px-2.5 py-2">
+      <div className="flex flex-wrap justify-end items-center gap-1.5 bg-black/60 backdrop-blur-sm border border-neon-cyan/20 rounded-lg px-2.5 py-2">
         {/* Record / Stop recording */}
         <button
           onClick={handleRecordToggle}

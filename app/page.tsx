@@ -800,7 +800,7 @@ export default function Home() {
   return (
     <div
       data-mode={mode}
-      className={`h-screen overflow-hidden ${mode === "gym" ? "gym-arena" : "arena"} text-white flex flex-col`}
+      className={`min-h-dvh fit:h-dvh overflow-x-hidden fit:overflow-hidden ${mode === "gym" ? "gym-arena" : "arena"} text-white flex flex-col`}
       style={{ fontFamily: "var(--font-chakra-petch, system-ui)" }}
     >
       {/* Floating ambient light orbs */}
@@ -817,10 +817,10 @@ export default function Home() {
       <GestureToast action={gestureToast} seq={gestureToastSeq} />
 
       {/* Header — Neon Marquee */}
-      <header className="flex-shrink-0 px-6 py-3 flex items-center justify-between relative z-20">
-        <div className="flex items-center gap-4">
+      <header className="flex-shrink-0 px-3 sm:px-6 py-2 sm:py-3 flex flex-wrap md:flex-nowrap items-center justify-between gap-x-4 gap-y-2 relative z-20">
+        <div className="flex items-center gap-3 sm:gap-4">
           <h1
-            className="text-xl tracking-[0.2em] uppercase neon-title animate-flicker"
+            className="text-lg sm:text-xl tracking-[0.2em] uppercase neon-title animate-flicker"
             style={{ fontFamily: "var(--font-audiowide)" }}
           >
             {mode === "gym" ? "Iron Form" : "FITVEDA"}
@@ -834,8 +834,8 @@ export default function Home() {
           </span>
         </div>
 
-        <div className="flex-1 max-w-xl mx-8 flex flex-col gap-1.5">
-          <div className="flex gap-1 justify-center">
+        <div className="order-last md:order-none basis-full md:basis-auto md:flex-1 w-full max-w-xl mx-auto md:mx-8 flex flex-col gap-1.5">
+          <div className="flex flex-wrap gap-1 justify-center">
             <button
               onClick={() => setInputMode("url")}
               className={`px-3 py-1 text-[9px] tracking-[0.2em] uppercase border transition-colors ${
@@ -867,7 +867,7 @@ export default function Home() {
               }`}
               style={{ fontFamily: "var(--font-audiowide)" }}
             >
-              Zoom
+              Live Class
             </button>
           </div>
           {inputMode === "url" ? (
@@ -881,8 +881,8 @@ export default function Home() {
           ) : null}
         </div>
 
-        {/* Spacer to balance the title on the left */}
-        <div className="flex items-center gap-4 invisible">
+        {/* Spacer to balance the title on the left (wide screens only) */}
+        <div className="hidden xl:flex items-center gap-4 invisible">
           <h1 className="text-xl tracking-[0.2em] uppercase">
             {mode === "gym" ? "Iron Form" : "FITVEDA"}
           </h1>
@@ -895,7 +895,7 @@ export default function Home() {
       {/* Mode activation overlay */}
       <ModeOverlay mode={mode} seq={modeOverlaySeq} />
 
-      {/* Zoom tab — replaces the YouTube arena so only one webcam/pose engine runs */}
+      {/* Live Class tab (Zoom call / window capture) — replaces the YouTube arena so only one webcam/pose engine runs */}
       {inputMode === "zoom" && <ZoomMode />}
 
       {inputMode !== "zoom" && (
@@ -918,10 +918,11 @@ export default function Home() {
       )}
 
       {/* Main Split Screen — kept mounted in DOM via CSS hidden to preserve webcam and MediaPipe WASM instance */}
-      <div className={downloadStatus === "done" && classificationStatus === "pending" ? "hidden" : "flex-1 flex flex-col min-h-0 relative z-10"}>
-        <main className="flex-1 flex gap-3 p-3 min-h-0 relative z-10">
+      <div className={downloadStatus === "done" && classificationStatus === "pending" ? "hidden" : "flex-1 flex flex-col fit:min-h-0 relative z-10"}>
+        <main className="flex flex-col sm:flex-row gap-2 sm:gap-3 p-2 sm:p-3 relative z-10 fit:flex-1 fit:min-h-0">
             {/* Left — Reference Video */}
-            <div className="flex-1 min-w-0 min-h-0 flex flex-col gap-2">
+            <div className="w-full sm:w-auto sm:flex-1 min-w-0 fit:min-h-0 flex flex-col gap-2">
+              <div className="relative w-full aspect-video sm:aspect-[4/3] fit:aspect-auto fit:flex-1 fit:min-h-0">
               <YoutubePanel
                 ref={youtubePanelRef}
                 videoId={videoId}
@@ -932,6 +933,7 @@ export default function Home() {
                 extractionProgress={extractionProgress}
                 generatePhase={generatePhase}
               />
+              </div>
 
               {/* Playback Speed Slider */}
               {downloadStatus === "done" && (
@@ -969,7 +971,7 @@ export default function Home() {
             </div>
 
             {/* Right — Live Camera with score-reactive glow */}
-            <div className={`flex-1 min-w-0 relative transition-all duration-700 ${getCameraGlow()}`}>
+            <div className={`w-full sm:w-auto sm:flex-1 min-w-0 relative aspect-[4/3] fit:aspect-auto transition-all duration-700 ${getCameraGlow()}`}>
               <GestureProgressBar progress={gestureProgress} pending={gesturePending} />
 
               {/* Total Points Counter */}
@@ -1024,7 +1026,7 @@ export default function Home() {
 
           {/* Move Queue Strip */}
           {poseTimeline && poseTimeline.length > 0 && (
-            <div className="flex-shrink-0 px-3 relative z-10">
+            <div className="flex-shrink-0 px-2 sm:px-3 relative z-10">
               <MoveQueue
                 timeline={poseTimeline}
                 currentTime={currentVideoTime}
@@ -1038,7 +1040,7 @@ export default function Home() {
           )}
 
           {/* Coach Panel */}
-          <footer className="flex-shrink-0 px-3 pb-3 relative z-10">
+          <footer className="flex-shrink-0 px-2 sm:px-3 pb-16 sm:pb-3 relative z-10">
             <CoachPanel score={score} message={coachMsg} showScore={poseTimeline !== null} mode={mode} />
           </footer>
 

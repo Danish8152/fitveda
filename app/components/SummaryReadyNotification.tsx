@@ -24,7 +24,7 @@ export default function SummaryReadyNotification({ visible, onView, onDismiss }:
 
   return (
     <div
-      className={`fixed bottom-6 right-6 z-50 transition-all duration-500 ${
+      className={`fixed bottom-3 right-3 left-3 sm:left-auto sm:bottom-6 sm:right-6 z-50 transition-all duration-500 ${
         isAnimating ? "translate-x-0 opacity-100" : "translate-x-[120%] opacity-0"
       }`}
     >

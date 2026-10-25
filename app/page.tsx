@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useRef, useEffect } from "react";
 import UrlInput from "./components/UrlInput";
+import GenerateInput from "./components/GenerateInput";
 import YoutubePanel from "./components/YoutubePanel";
 import type { YoutubePanelHandle } from "./components/YoutubePanel";
 import CameraPanel from "./components/CameraPanel";
@@ -57,6 +58,7 @@ import type { SessionStats } from "./lib/sessionStats";
 
 type ScoreType = "perfect" | "great" | "ok" | "almost" | "miss";
 
+type InputMode = "url" | "generate";
 type DownloadStatus = "idle" | "downloading" | "done" | "error";
 type ExtractionStatus = "idle" | "extracting" | "done";
 type ClassificationStatus = "idle" | "pending" | "done";
@@ -128,6 +130,8 @@ export default function Home() {
   const [replayPaused, setReplayPaused] = useState(false);
   const [replayProgress, setReplayProgress] = useState(0);
   const [mode, setMode] = useState<AppMode>("dance");
+  const [inputMode, setInputMode] = useState<InputMode>("url");
+  const [generatePhase, setGeneratePhase] = useState("");
   const [classificationStatus, setClassificationStatus] = useState<ClassificationStatus>("idle");
   const [modeOverlaySeq, setModeOverlaySeq] = useState(0);
   const [scorePopup, setScorePopup] = useState<ScoreType | null>(null);
@@ -287,6 +291,95 @@ export default function Home() {
       setDownloadError(err instanceof Error ? err.message : "Network error");
     }
   }, [videoId, downloadStatus]);
+
+  const handleGenerate = useCallback(async (prompt: string) => {
+    // Reset state for new generation
+    setPoseTimeline(null);
+    setExtractionStatus("idle");
+    setExtractionProgress(0);
+    groqAnchorRef.current = null;
+    smoothedScoreRef.current = 0;
+    resetGroqScoring();
+    resetGestureState();
+    resetGymScoring();
+    scoredFramesRef.current.clear();
+    lastScoredFrameIndexRef.current = -1;
+    prevVideoTimeRef.current = 0;
+    setScorePopup(null);
+    setTotalPoints(0);
+    setScorePopupPoints(0);
+    setComboFlash(null);
+    streakRef.current = 0;
+    setSummaryReady(false);
+    setClassificationStatus("idle");
+
+    setDownloadStatus("downloading");
+    setClassificationStatus("pending");
+    setVideoTitle("");
+    setDownloadProgress(0);
+    setDownloadError(null);
+    setGeneratePhase("researching");
+
+    try {
+      const res = await fetch("/api/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ prompt }),
+      });
+
+      if (!res.ok || !res.body) {
+        setDownloadStatus("error");
+        setDownloadError(`Server responded with ${res.status}`);
+        return;
+      }
+
+      const reader = res.body.getReader();
+      const decoder = new TextDecoder();
+      let buf = "";
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buf += decoder.decode(value, { stream: true });
+        const lines = buf.split("\n\n");
+        buf = lines.pop() || "";
+
+        for (const line of lines) {
+          const dataLine = line.replace(/^data: /, "");
+          if (!dataLine) continue;
+
+          try {
+            const event = JSON.parse(dataLine);
+            if (event.type === "progress") {
+              setDownloadProgress(event.percent);
+              if (event.phase) setGeneratePhase(event.phase);
+            } else if (event.type === "genId") {
+              setVideoId(event.id);
+            } else if (event.type === "done") {
+              setDownloadStatus("done");
+              setGeneratePhase("");
+            } else if (event.type === "classified") {
+              setMode(event.mode === "gym" ? "gym" : "dance");
+              setClassificationStatus("done");
+              setModeOverlaySeq(s => s + 1);
+              if (event.title) setVideoTitle(event.title);
+            } else if (event.type === "error") {
+              setDownloadStatus("error");
+              setDownloadError(event.message);
+              setGeneratePhase("");
+            }
+          } catch {
+            // ignore malformed SSE lines
+          }
+        }
+      }
+    } catch (err) {
+      setDownloadStatus("error");
+      setDownloadError(err instanceof Error ? err.message : "Network error");
+      setGeneratePhase("");
+    }
+  }, []);
 
   // Read ?url= query param on mount (for Chrome extension)
   useEffect(() => {
@@ -741,11 +834,39 @@ export default function Home() {
         </div>
 
         <div className="flex-1 max-w-xl mx-8 flex flex-col gap-1.5">
-          <UrlInput
-            onSubmit={handleUrl}
-            lastSubmittedTitle={videoTitle}
-            lastSubmittedUrl={lastSubmittedUrl}
-          />
+          <div className="flex gap-1 justify-center">
+            <button
+              onClick={() => setInputMode("url")}
+              className={`px-3 py-1 text-[9px] tracking-[0.2em] uppercase border transition-colors ${
+                inputMode === "url"
+                  ? "border-neon-cyan/60 text-neon-cyan bg-neon-cyan/10"
+                  : "border-neon-cyan/15 text-neon-cyan/40 hover:text-neon-cyan/60"
+              }`}
+              style={{ fontFamily: "var(--font-audiowide)" }}
+            >
+              YouTube URL
+            </button>
+            <button
+              onClick={() => setInputMode("generate")}
+              className={`px-3 py-1 text-[9px] tracking-[0.2em] uppercase border transition-colors ${
+                inputMode === "generate"
+                  ? "border-neon-cyan/60 text-neon-cyan bg-neon-cyan/10"
+                  : "border-neon-cyan/15 text-neon-cyan/40 hover:text-neon-cyan/60"
+              }`}
+              style={{ fontFamily: "var(--font-audiowide)" }}
+            >
+              AI Generate
+            </button>
+          </div>
+          {inputMode === "url" ? (
+            <UrlInput
+              onSubmit={handleUrl}
+              lastSubmittedTitle={videoTitle}
+              lastSubmittedUrl={lastSubmittedUrl}
+            />
+          ) : (
+            <GenerateInput onSubmit={handleGenerate} disabled={downloadStatus === "downloading"} />
+          )}
         </div>
 
         {/* Spacer to balance the title on the left */}
@@ -792,6 +913,7 @@ export default function Home() {
                 downloadError={downloadError}
                 extractionStatus={extractionStatus}
                 extractionProgress={extractionProgress}
+                generatePhase={generatePhase}
               />
 
               {/* Playback Speed Slider */}

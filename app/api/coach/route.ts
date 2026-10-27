@@ -1,5 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 import OpenAI from "openai";
+import { chatCompletion, hasLlmProvider } from "../../lib/llm";
 import type { AppMode } from "../../shared/mode";
 
 const DANCE_COACH_PROMPT = `You're a hype dance coach in the room with someone learning choreography in real-time. You'll get a JSON pose snapshot with context — reply with ONE spoken coaching line (max 15 words). This will be read aloud via TTS so write it exactly as spoken words.
@@ -58,10 +59,9 @@ Reply with ONLY the coaching line. No quotes, no JSON.`;
 
 export async function POST(req: NextRequest) {
   try {
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) {
+    if (!hasLlmProvider()) {
       return NextResponse.json(
-        { message: "Set OPENAI_API_KEY in .env.local to enable AI coach!" },
+        { message: "Set SARVAM_API_KEY, GROQ_API_KEY or OPENAI_API_KEY to enable the AI coach!" },
         { status: 200 }
       );
     }
@@ -82,8 +82,6 @@ export async function POST(req: NextRequest) {
     const isGym = mode === "gym";
     const systemPrompt = isGym ? GYM_COACH_PROMPT : DANCE_COACH_PROMPT;
 
-    const openai = new OpenAI({ apiKey });
-
     const messages: OpenAI.Chat.ChatCompletionMessageParam[] = [
       { role: "system", content: systemPrompt },
     ];
@@ -103,17 +101,16 @@ export async function POST(req: NextRequest) {
       content: `Current pose snapshot:\n${JSON.stringify(summary, null, 2)}`,
     });
 
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+    const reply = await chatCompletion({
       messages,
-      max_tokens: 80,
+      maxTokens: 80,
       temperature: 0.95,
-      presence_penalty: 0.6,  // Discourage repeating tokens from prior output
-      frequency_penalty: 0.4, // Discourage repeating common phrases
+      presencePenalty: 0.6,  // Discourage repeating tokens from prior output
+      frequencyPenalty: 0.4, // Discourage repeating common phrases
     });
 
-    const message =
-      completion.choices[0]?.message?.content?.trim() ?? "Keep moving!";
+    // The prompt asks for no quotes; strip them if a model adds them anyway
+    const message = reply.replace(/^["'“”]+|["'“”]+$/g, "").trim() || "Keep moving!";
 
     // Generate speech audio via Sarvam AI TTS
     let audio: string | undefined;

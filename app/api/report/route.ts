@@ -1,5 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
-import OpenAI from "openai";
+import { chatCompletion, hasLlmProvider } from "../../lib/llm";
 import type { AppMode } from "../../shared/mode";
 
 type SessionStats = {
@@ -127,8 +127,7 @@ export async function POST(req: NextRequest) {
         limbEntries[limbEntries.length - 1][0];
     }
 
-    const apiKey = process.env.OPENAI_API_KEY;
-    if (!apiKey) {
+    if (!hasLlmProvider()) {
       const isGymFallback = mode === "gym";
       return NextResponse.json({
         grade,
@@ -150,8 +149,6 @@ export async function POST(req: NextRequest) {
       } satisfies AIReport);
     }
 
-    const openai = new OpenAI({ apiKey });
-
     const userContent = JSON.stringify({
       grade,
       avgScore: Math.round(avgScore),
@@ -167,21 +164,21 @@ export async function POST(req: NextRequest) {
     const isGym = mode === "gym";
     const systemPrompt = isGym ? GYM_SYSTEM_PROMPT : DANCE_SYSTEM_PROMPT;
 
-    const completion = await openai.chat.completions.create({
-      model: "gpt-4o-mini",
+    const raw = await chatCompletion({
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userContent },
       ],
-      max_tokens: 400,
+      maxTokens: 400,
       temperature: 0.9,
     });
 
-    const raw = completion.choices[0]?.message?.content?.trim() ?? "";
-
     let parsed: Record<string, unknown>;
     try {
-      parsed = JSON.parse(raw);
+      // Some models wrap JSON in code fences or add a sentence around it; take the outermost {...}
+      const start = raw.indexOf("{");
+      const end = raw.lastIndexOf("}");
+      parsed = JSON.parse(start >= 0 && end > start ? raw.slice(start, end + 1) : raw);
     } catch {
       // If LLM returns malformed JSON, use fallback
       return NextResponse.json({

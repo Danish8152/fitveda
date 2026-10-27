@@ -1,8 +1,9 @@
 import { NextRequest } from "next/server";
 import { mkdir } from "fs/promises";
 import path from "path";
-// BrightData client kept in codebase at ../../lib/brightdata.ts but not used here
-import { generateVideo, waitForVideo, downloadVideo } from "../../lib/grok";
+import * as grok from "../../lib/grok";
+import * as magichour from "../../lib/magichour";
+import { chatCompletion } from "../../lib/llm";
 import OpenAI from "openai";
 import { VIDEO_DIR } from "../../lib/constants";
 
@@ -57,13 +58,13 @@ export async function POST(request: NextRequest) {
         // Phase 1: Research via Perplexity Sonar (web-grounded)
         emit({ type: "progress", percent: 5, phase: "researching" });
 
-        const perplexity = new OpenAI({
-          apiKey: process.env.PERPLEXITY_API_KEY,
-          baseURL: "https://api.perplexity.ai",
-        });
-
         let researchData = "";
+        // Only research when a Perplexity key is set. Without one, the OpenAI SDK would fall back to
+        // OPENAI_API_KEY and send it to perplexity.ai.
+        const perplexityKey = process.env.PERPLEXITY_API_KEY;
         try {
+          if (!perplexityKey) throw new Error("PERPLEXITY_API_KEY not set, skipping web research");
+          const perplexity = new OpenAI({ apiKey: perplexityKey, baseURL: "https://api.perplexity.ai" });
           const researchCompletion = await perplexity.chat.completions.create({
             model: "sonar-pro",
             messages: [
@@ -79,15 +80,13 @@ export async function POST(request: NextRequest) {
           });
           researchData = researchCompletion.choices[0]?.message?.content?.trim() || "";
         } catch (err) {
-          console.error("Perplexity research failed, continuing with prompt only:", err);
+          console.warn("Web research skipped, continuing with prompt only:", err instanceof Error ? err.message : err);
         }
 
         emit({ type: "progress", percent: 30, phase: "researching" });
 
-        // Phase 2: Synthesize into video description with GPT
+        // Phase 2: Synthesize into a video description (Sarvam, Groq or OpenAI, then a built-in template)
         emit({ type: "progress", percent: 40, phase: "synthesizing" });
-
-        const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
         const synthesisPrompt = `You are a fitness and movement expert. Based on the user's request and the research below, create a detailed visual description for a single 10-second video clip.
 
@@ -103,40 +102,47 @@ Create a vivid, detailed description of a single continuous video showing a pers
 
 Keep the description under 200 words. The video will be 15 seconds long. Be specific and visual — this will be used to generate a video.`;
 
-        const completion = await openai.chat.completions.create({
-          model: "gpt-4o-mini",
-          messages: [{ role: "user", content: synthesisPrompt }],
-          max_tokens: 300,
-          temperature: 0.7,
-        });
+        let videoDescription = "";
+        try {
+          videoDescription = await chatCompletion({
+            messages: [{ role: "user", content: synthesisPrompt }],
+            maxTokens: 400,
+            temperature: 0.7,
+          });
+        } catch (err) {
+          console.error("Script step failed on every provider, using template:", err instanceof Error ? err.message : err);
+        }
 
-        const videoDescription =
-          completion.choices[0]?.message?.content?.trim() ||
-          `A person performing ${prompt} in a clean white studio with a plain white background, static locked-off camera, full body visible head to toe, demonstrating proper form with clear slow movements.`;
+        if (!videoDescription) {
+          videoDescription = `A person performing ${prompt} in a clean white studio with a plain white background, static locked-off camera, full body visible head to toe, demonstrating proper form with clear slow movements.`;
+        }
 
         emit({ type: "progress", percent: 50, phase: "synthesizing" });
         emit({ type: "synthesis", description: videoDescription });
 
-        // Phase 3: Generate video with Grok
+        // Phase 3: Generate the video. Magic Hour when its key is set, otherwise xAI Grok.
         emit({ type: "progress", percent: 55, phase: "generating" });
 
-        const requestId = await generateVideo(videoDescription, {
+        const useMagicHour = Boolean(process.env.MAGICHOUR_API_KEY);
+        const provider = useMagicHour ? magichour : grok;
+
+        const requestId = await provider.generateVideo(videoDescription, {
           duration: 10,
-          aspect_ratio: "4:3",
+          aspect_ratio: useMagicHour ? "16:9" : "4:3", // Magic Hour has no 4:3
           resolution: "480p",
         });
 
         emit({ type: "progress", percent: 60, phase: "generating" });
 
         // Poll for completion
-        const videoUrl = await waitForVideo(requestId, () => {
+        const videoUrl = await provider.waitForVideo(requestId, () => {
           emit({ type: "progress", percent: 70, phase: "generating" });
         });
 
         emit({ type: "progress", percent: 85, phase: "downloading" });
 
         // Phase 4: Download to local
-        await downloadVideo(videoUrl, outputPath);
+        await grok.downloadVideo(videoUrl, outputPath);
 
         emit({ type: "progress", percent: 100, phase: "done" });
         emit({ type: "done" });

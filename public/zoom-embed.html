@@ -3,7 +3,7 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-  <title>Zoom Meeting</title>
+  <title>Online Meeting</title>
   <style>
     * { margin: 0; padding: 0; box-sizing: border-box; }
     html, body { width: 100%; height: 100%; background: #000; overflow: hidden; font-family: system-ui, sans-serif; }
@@ -19,7 +19,7 @@
 </head>
 <body>
   <div id="zmmtg-root">
-    <div class="status" id="statusMsg">Loading Zoom SDK…</div>
+    <div class="status" id="statusMsg">Loading online class…</div>
   </div>
 
   <script>
@@ -51,7 +51,7 @@
     } else {
       // Log all window keys that might be the SDK for debugging
       console.log("Available globals:", Object.keys(window).filter(function(k) { return k.includes("Zoom") || k.includes("React") || k.includes("Widget"); }));
-      setStatus("Failed to load Zoom SDK.", true);
+      setStatus("Failed to load the meeting SDK.", true);
       window.parent.postMessage({ type: "zoom-status", state: "error", error: "SDK script failed to load" }, "*");
     }
 

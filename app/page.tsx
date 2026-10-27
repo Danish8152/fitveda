@@ -4,6 +4,8 @@ import { useState, useCallback, useRef, useEffect } from "react";
 import UrlInput from "./components/UrlInput";
 import GenerateInput from "./components/GenerateInput";
 import ZoomMode from "./components/ZoomMode";
+import SettingsMenu from "./components/SettingsMenu";
+import { getMagicHourKey } from "./lib/apiKeys";
 import YoutubePanel from "./components/YoutubePanel";
 import type { YoutubePanelHandle } from "./components/YoutubePanel";
 import CameraPanel from "./components/CameraPanel";
@@ -133,6 +135,7 @@ export default function Home() {
   const [mode, setMode] = useState<AppMode>("dance");
   const [inputMode, setInputMode] = useState<InputMode>("url");
   const [generatePhase, setGeneratePhase] = useState("");
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const [classificationStatus, setClassificationStatus] = useState<ClassificationStatus>("idle");
   const [modeOverlaySeq, setModeOverlaySeq] = useState(0);
   const [scorePopup, setScorePopup] = useState<ScoreType | null>(null);
@@ -294,6 +297,8 @@ export default function Home() {
   }, [videoId, downloadStatus]);
 
   const handleGenerate = useCallback(async (prompt: string) => {
+    // Key typed into Settings (this browser only); the server falls back to its own key when empty
+    const magicHourKey = getMagicHourKey();
     // Reset state for new generation
     setPoseTimeline(null);
     setExtractionStatus("idle");
@@ -324,7 +329,10 @@ export default function Home() {
     try {
       const res = await fetch("/api/generate", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          ...(magicHourKey ? { "x-magichour-key": magicHourKey } : {}),
+        },
         body: JSON.stringify({ prompt }),
       });
 
@@ -881,11 +889,19 @@ export default function Home() {
           ) : null}
         </div>
 
-        {/* Spacer to balance the title on the left (wide screens only) */}
-        <div className="hidden xl:flex items-center gap-4 invisible">
-          <h1 className="text-xl tracking-[0.2em] uppercase">
-            {mode === "gym" ? "Iron Form" : "FITVEDA"}
-          </h1>
+        {/* Right side: Settings button. On xl the invisible title keeps the centre column centred. */}
+        <div className="relative flex items-center justify-end">
+          <div className="hidden xl:flex items-center gap-4 invisible" aria-hidden="true">
+            <h1 className="text-xl tracking-[0.2em] uppercase">
+              {mode === "gym" ? "Iron Form" : "FITVEDA"}
+            </h1>
+          </div>
+          <SettingsMenu
+            open={settingsOpen}
+            onToggle={() => setSettingsOpen((o) => !o)}
+            onClose={() => setSettingsOpen(false)}
+            className="xl:absolute xl:right-0"
+          />
         </div>
       </header>
 

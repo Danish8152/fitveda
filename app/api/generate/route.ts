@@ -23,8 +23,23 @@ function classifyPrompt(prompt: string): "dance" | "gym" {
   return danceScore > gymScore ? "dance" : "gym";
 }
 
+/** Optional Magic Hour key typed into the browser. Only ever forwarded to api.magichour.ai. */
+function readMagicHourKey(request: NextRequest): string | undefined | null {
+  const raw = request.headers.get("x-magichour-key")?.trim();
+  if (!raw) return undefined;
+  return /^[!-~]{8,200}$/.test(raw) ? raw : null; // null = malformed
+}
+
 export async function POST(request: NextRequest) {
   const { prompt } = (await request.json()) as { prompt: string };
+
+  const userKey = readMagicHourKey(request);
+  if (userKey === null) {
+    return new Response(
+      JSON.stringify({ error: "Invalid Magic Hour API key format" }),
+      { status: 400, headers: { "Content-Type": "application/json" } }
+    );
+  }
 
   if (!prompt || prompt.trim().length < 3) {
     return new Response(
@@ -120,24 +135,31 @@ Keep the description under 200 words. The video will be 15 seconds long. Be spec
         emit({ type: "progress", percent: 50, phase: "synthesizing" });
         emit({ type: "synthesis", description: videoDescription });
 
-        // Phase 3: Generate the video. Magic Hour when its key is set, otherwise xAI Grok.
+        // Phase 3: Generate the video. Magic Hour when a key is available (typed in the browser
+        // or set on the server), otherwise xAI Grok.
         emit({ type: "progress", percent: 55, phase: "generating" });
 
-        const useMagicHour = Boolean(process.env.MAGICHOUR_API_KEY);
-        const provider = useMagicHour ? magichour : grok;
+        const useMagicHour = Boolean(userKey || process.env.MAGICHOUR_API_KEY);
+        const onPoll = () => emit({ type: "progress", percent: 70, phase: "generating" });
+        let videoUrl: string;
 
-        const requestId = await provider.generateVideo(videoDescription, {
-          duration: 10,
-          aspect_ratio: useMagicHour ? "16:9" : "4:3", // Magic Hour has no 4:3
-          resolution: "480p",
-        });
-
-        emit({ type: "progress", percent: 60, phase: "generating" });
-
-        // Poll for completion
-        const videoUrl = await provider.waitForVideo(requestId, () => {
-          emit({ type: "progress", percent: 70, phase: "generating" });
-        });
+        if (useMagicHour) {
+          const requestId = await magichour.generateVideo(
+            videoDescription,
+            { duration: 10, aspect_ratio: "16:9", resolution: "480p" }, // Magic Hour has no 4:3
+            userKey
+          );
+          emit({ type: "progress", percent: 60, phase: "generating" });
+          videoUrl = await magichour.waitForVideo(requestId, onPoll, undefined, userKey);
+        } else {
+          const requestId = await grok.generateVideo(videoDescription, {
+            duration: 10,
+            aspect_ratio: "4:3",
+            resolution: "480p",
+          });
+          emit({ type: "progress", percent: 60, phase: "generating" });
+          videoUrl = await grok.waitForVideo(requestId, onPoll);
+        }
 
         emit({ type: "progress", percent: 85, phase: "downloading" });
 

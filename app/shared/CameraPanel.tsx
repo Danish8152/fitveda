@@ -136,7 +136,7 @@ export default function CameraPanel({ onPose, badge = "LIVE", segmentedVideoUrl,
       } catch (err: any) {
         console.error("Camera init error:", err);
         const errMsg = err?.name === "NotReadableError" || err?.name === "TrackStartError"
-          ? "Camera is currently locked by Zoom or another application. Please turn off your video in Zoom and click Retry."
+          ? "Camera is currently locked by another application (for example your video-call app). Please turn off your video there and click Retry."
           : err?.name === "NotAllowedError"
           ? "Camera permission denied by browser settings."
           : `Could not start video source: ${err?.message || err?.name || "Hardware error"}`;

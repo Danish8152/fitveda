@@ -64,7 +64,7 @@ export default function ZoomMode() {
       setComparison({
         similarity: 0,
         parts: { arms: 0, legs: 0, torso: 0 },
-        feedback: remoteLm ? ["Step into frame!"] : ["Waiting for Zoom feed…"],
+        feedback: remoteLm ? ["Step into frame!"] : ["Waiting for the online feed…"],
       });
       return;
     }
@@ -261,11 +261,11 @@ export default function ZoomMode() {
             className="flex-1 p-6 rounded-2xl bg-white/5 border border-white/10 hover:border-blue-500/50 transition-colors text-left cursor-pointer group">
             <div className="text-2xl mb-3">📹</div>
             <h3 className="font-semibold text-white group-hover:text-blue-400 transition-colors mb-2">
-              Join Zoom Meeting
+              Join Online Meeting
             </h3>
             <p className="text-white/40 text-xs leading-relaxed">
-              Enter a meeting ID to embed a live Zoom call. Requires
-              ZOOM_SDK_KEY and ZOOM_SDK_SECRET on the server
+              Enter a meeting ID to join a live online class right here.
+              Needs the meeting SDK key and secret set on the server
             </p>
           </button>
 
@@ -273,10 +273,10 @@ export default function ZoomMode() {
             className="flex-1 p-6 rounded-2xl bg-white/5 border border-white/10 hover:border-cyan-500/50 transition-colors text-left cursor-pointer group">
             <div className="text-2xl mb-3">🖥️</div>
             <h3 className="font-semibold text-white group-hover:text-cyan-400 transition-colors mb-2">
-              Capture Zoom Window
+              Capture Online Window
             </h3>
             <p className="text-white/40 text-xs leading-relaxed">
-              Share your Zoom window directly. No credentials needed — just pick
+              Share your online class window directly. No credentials needed — just pick
               the window.
             </p>
           </button>
@@ -340,7 +340,7 @@ export default function ZoomMode() {
           >
             ← Back
           </button>
-          <h2 className="text-lg font-bold text-white/80">Zoom Meeting</h2>
+          <h2 className="text-lg font-bold text-white/80">Online Meeting</h2>
         </div>
         <div className="flex items-center gap-3">
           <button

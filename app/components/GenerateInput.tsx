@@ -58,6 +58,7 @@ export default function GenerateInput({ onSubmit, disabled }: Props) {
           Generate
         </button>
       </form>
+
       <div className="flex flex-wrap gap-2 mt-2">
         {EXAMPLES.map((ex) => (
           <button

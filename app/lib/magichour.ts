@@ -3,7 +3,8 @@
  * Same shape as lib/grok.ts: submit a job, poll until it finishes, get a download URL.
  *
  * Env:
- *   MAGICHOUR_API_KEY  required, create one at https://magichour.ai/developer
+ *   MAGICHOUR_API_KEY  default key, create one at https://magichour.ai/developer.
+ *                      A key sent from the browser (x-magichour-key header) overrides it per request.
  *   MAGICHOUR_MODEL    optional, defaults to "default" (kling-3.0 on paid plans, ltx-2.5 on free).
  *                      Cheaper e.g. "ltx-2.5"; see the Magic Hour docs for the model list.
  */
@@ -23,16 +24,17 @@ interface VideoProject {
   downloads?: { url: string; expires_at?: string }[];
 }
 
-function authHeaders(): Record<string, string> {
-  const key = process.env.MAGICHOUR_API_KEY;
-  if (!key) throw new Error("MAGICHOUR_API_KEY is not set");
+function authHeaders(apiKey?: string): Record<string, string> {
+  const key = apiKey || process.env.MAGICHOUR_API_KEY;
+  if (!key) throw new Error("No Magic Hour API key. Open Settings (gear icon) and paste one, or set MAGICHOUR_API_KEY on the server.");
   return { Authorization: `Bearer ${key}`, "Content-Type": "application/json", Accept: "application/json" };
 }
 
 /** Submit a text-to-video job. Returns the video project ID. */
 export async function generateVideo(
   prompt: string,
-  options: GenerateOptions = {}
+  options: GenerateOptions = {},
+  apiKey?: string
 ): Promise<string> {
   const body = {
     name: `FITVEDA ${new Date().toISOString()}`,
@@ -46,13 +48,19 @@ export async function generateVideo(
 
   const res = await fetch(`${BASE}/text-to-video`, {
     method: "POST",
-    headers: authHeaders(),
+    headers: authHeaders(apiKey),
     body: JSON.stringify(body),
   });
 
   if (!res.ok) {
     const text = await res.text();
     console.error("[magichour] Generation request failed:", res.status, text.slice(0, 300));
+    if (res.status === 401) {
+      throw new Error("Magic Hour rejected the API key. Open Settings (gear icon) and paste a valid key.");
+    }
+    if (res.status === 402) {
+      throw new Error("Magic Hour credits are used up. Open Settings (gear icon) and paste a different key, or add credits.");
+    }
     throw new Error(`Magic Hour video generation failed (${res.status}): ${text.slice(0, 300)}`);
   }
 
@@ -65,7 +73,8 @@ export async function generateVideo(
 export async function waitForVideo(
   id: string,
   onProgress?: (status: string) => void,
-  maxWaitMs = 600_000
+  maxWaitMs = 600_000,
+  apiKey?: string
 ): Promise<string> {
   const start = Date.now();
   const interval = 5_000;
@@ -73,7 +82,7 @@ export async function waitForVideo(
 
   while (Date.now() - start < maxWaitMs) {
     pollCount++;
-    const res = await fetch(`${BASE}/video-projects/${id}`, { headers: authHeaders() });
+    const res = await fetch(`${BASE}/video-projects/${id}`, { headers: authHeaders(apiKey) });
     if (!res.ok) {
       const text = await res.text();
       throw new Error(`Magic Hour status check failed (${res.status}): ${text.slice(0, 300)}`);

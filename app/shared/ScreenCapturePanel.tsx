@@ -147,7 +147,7 @@ export default function ScreenCapturePanel({ onPose, onStop, onAspectRatio }: Pr
     } catch (err) {
       if (err instanceof Error && err.name === "NotAllowedError") {
         console.warn("[ScreenCapture] Screen sharing was cancelled or denied by user.");
-        setError("Screen sharing was cancelled. Click 'Capture Zoom Window' to try again.");
+        setError("Screen sharing was cancelled. Click 'Capture Online Window' to try again.");
       } else {
         console.error("Screen capture error:", err);
         setError("Could not start screen capture.");
@@ -183,7 +183,7 @@ export default function ScreenCapturePanel({ onPose, onStop, onAspectRatio }: Pr
         <>
           <div className="absolute top-3 left-3 flex items-center gap-2 bg-black/60 px-3 py-1 rounded-full">
             <span className="w-2 h-2 rounded-full bg-blue-500 animate-pulse" />
-            <span className="text-xs text-white/70">ZOOM CAPTURE</span>
+            <span className="text-xs text-white/70">ONLINE CAPTURE</span>
           </div>
           <button
             onClick={() => { stopCapture(); onStop?.(); }}
@@ -197,16 +197,16 @@ export default function ScreenCapturePanel({ onPose, onStop, onAspectRatio }: Pr
       {!capturing && (
         <div className="absolute inset-0 flex flex-col items-center justify-center gap-4">
           <div className="text-center">
-            <p className="text-white/60 text-sm mb-1">Capture your Zoom call</p>
+            <p className="text-white/60 text-sm mb-1">Capture your online class</p>
             <p className="text-white/30 text-xs max-w-xs">
-              Share your Zoom window so the AI coach can see the dancer and track their moves
+              Share your online class window so the AI coach can see the dancer and track their moves
             </p>
           </div>
           <button
             onClick={startCapture}
             className="px-6 py-3 rounded-xl bg-gradient-to-r from-blue-500 to-cyan-500 text-white font-semibold text-sm hover:opacity-90 transition-opacity cursor-pointer"
           >
-            Share Zoom Window
+            Share Online Window
           </button>
           {error && <p className="text-red-400 text-xs">{error}</p>}
         </div>
